@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubehealer-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: kubehealer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubehealer-controller-role
+  labels:
+    app.kubernetes.io/name: kubehealer
+rules:
+  # Pod and Node Inspection
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status", "nodes", "events"]
+    verbs: ["get", "list", "watch"]
+  # Pod Self-Healing & Remediation (Graceful Deletion & Eviction)
+  - apiGroups: [""]
+    resources: ["pods", "pods/eviction"]
+    verbs: ["delete", "create"]
+  # Pod Annotations (Anti-Flapping & Quarantine Markers)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["patch", "update"]
+  # Deployment Rollback & Inspection
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/rollback", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubehealer-controller-binding
+  labels:
+    app.kubernetes.io/name: kubehealer
+subjects:
+  - kind: ServiceAccount
+    name: kubehealer-controller
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: kubehealer-controller-role
+  apiGroup: rbac.authorization.k8s.io

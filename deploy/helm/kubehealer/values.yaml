@@ -1,0 +1,51 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/olumideadekunle/kubehealer
+  pullPolicy: IfNotPresent
+  tag: "v1.0.0"
+
+nameOverride: ""
+fullnameOverride: "kubehealer"
+
+config:
+  clusterName: "production-cluster"
+  watchNamespaces:
+    - default
+    - production
+    - staging
+  dryRun: false
+  flappingThreshold: 5
+  autoRollbackEnabled: true
+  slackWebhookUrl: ""
+  webhookUrl: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 10s

@@ -1,0 +1,23 @@
+# Chaos Pod: Triggers Immediate CrashLoopBackOff Exit Code 1
+# Used to verify KubeHealer crashloop detection & automated rollback safeguard
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-crashloop-app
+  namespace: default
+  labels:
+    app.kubernetes.io/name: chaos-crashloop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-crashloop
+  template:
+    metadata:
+      labels:
+        app: chaos-crashloop
+    spec:
+      containers:
+        - name: crash-container
+          image: alpine:latest
+          command: ["sh", "-c", "echo 'Fatal initialization error: database credentials rejected'; exit 1"]

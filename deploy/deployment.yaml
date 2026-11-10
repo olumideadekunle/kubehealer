@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubehealer-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: kubehealer
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubehealer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kubehealer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: kubehealer-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534 # nobody
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kubehealer
+          image: ghcr.io/olumideadekunle/kubehealer:v1.0.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--mode=daemon"
+            - "--port=8080"
+            - "--flapping-threshold=5"
+          env:
+            - name: CLUSTER_NAME
+              value: "production-k8s-cluster"
+            - name: WATCH_NAMESPACES
+              value: "default,production,staging"
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

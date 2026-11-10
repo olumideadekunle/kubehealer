@@ -1,0 +1,20 @@
+# Chaos Pod: Triggers Out-Of-Memory (OOMKilled) Exit Code 137
+# Used to verify KubeHealer forensic capture & graceful restart
+apiVersion: v1
+kind: Pod
+metadata:
+  name: chaos-oom-victim
+  namespace: default
+  labels:
+    app.kubernetes.io/name: chaos-oom
+spec:
+  restartPolicy: Never
+  containers:
+    - name: memory-bomb
+      image: python:3.12-alpine
+      command: ["python", "-c", "import sys; print('Consuming memory beyond cgroup limit...'); arr = [bytearray(1024*1024) for _ in range(500)]"]
+      resources:
+        limits:
+          memory: "64Mi"
+        requests:
+          memory: "32Mi"

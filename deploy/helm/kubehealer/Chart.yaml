@@ -1,0 +1,19 @@
+apiVersion: v2
+name: kubehealer
+description: A Helm chart for KubeHealer — Autonomous Kubernetes SRE & Incident Auto-Remediation Controller
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kubernetes
+  - sre
+  - devops
+  - auto-remediation
+  - observability
+  - prometheus
+home: https://github.com/olumideadekunle/kubehealer
+sources:
+  - https://github.com/olumideadekunle/kubehealer
+maintainers:
+  - name: Olumide Adekunle
+    url: https://github.com/olumideadekunle
