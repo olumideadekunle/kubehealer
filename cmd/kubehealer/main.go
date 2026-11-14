@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -43,6 +44,11 @@ func main() {
 
 	printBanner()
 
+	// Honor $PORT when provided by the hosting platform (e.g. Vercel, Cloud Run).
+	if p, err := strconv.Atoi(os.Getenv("PORT")); err == nil && p > 0 {
+		*port = p
+	}
+
 	cfg := types.DefaultConfig()
 	cfg.MetricsPort = *port
 	cfg.DryRun = *dryRun
@@ -58,6 +64,19 @@ func main() {
 
 	// Start HTTP Server (Prometheus metrics & REST API)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"service":   "kubehealer",
+			"version":   version,
+			"status":    "ok",
+			"endpoints": []string{"/healthz", "/metrics", "/api/v1/incidents"},
+		})
+	})
 	mux.Handle("/metrics", reg.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
