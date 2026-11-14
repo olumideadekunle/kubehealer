@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,6 +21,9 @@ import (
 	"github.com/olumideadekunle/kubehealer/pkg/playbook"
 	"github.com/olumideadekunle/kubehealer/pkg/types"
 )
+
+//go:embed web/index.html
+var indexHTML []byte
 
 var (
 	version = "1.0.0"
@@ -69,13 +73,39 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(indexHTML)
+	})
+	mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"service":   "kubehealer",
 			"version":   version,
 			"status":    "ok",
-			"endpoints": []string{"/healthz", "/metrics", "/api/v1/incidents"},
+			"mode":      *mode,
+			"endpoints": []string{"/healthz", "/metrics", "/api/v1/incidents", "/api/v1/demo"},
 		})
+	})
+	// Live demo: inject the three chaos scenarios and return the resulting incidents.
+	mux.HandleFunc("/api/v1/demo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			http.Error(w, "use POST", http.StatusMethodNotAllowed)
+			return
+		}
+		results := make([]interface{}, 0, 3)
+		for _, sc := range demoScenarios() {
+			inc, err := ctrl.ProcessPod(r.Context(), sc.pod, sc.recentEvents)
+			if err != nil {
+				results = append(results, map[string]string{"scenario": sc.name, "error": err.Error()})
+				continue
+			}
+			if inc != nil {
+				results = append(results, map[string]interface{}{"scenario": sc.name, "incident": inc})
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"count": len(results), "results": results})
 	})
 	mux.Handle("/metrics", reg.Handler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -143,12 +173,38 @@ func runSimulation(ctx context.Context, ctrl *controller.Controller) {
 	fmt.Println("🚀 RUNNING AUTONOMOUS SRE CHAOS DEMONSTRATION")
 	fmt.Println("----------------------------------------------------------------------")
 
-	scenarios := []struct {
-		name         string
-		pod          types.PodInfo
-		recentEvents []string
-		delay        time.Duration
-	}{
+	scenarios := demoScenarios()
+	for i, sc := range scenarios {
+		fmt.Printf("\n▶ [%d/3] INJECTING: %s\n", i+1, sc.name)
+		time.Sleep(sc.delay)
+
+		incident, err := ctrl.ProcessPod(ctx, sc.pod, sc.recentEvents)
+		if err != nil {
+			fmt.Printf("❌ Failed: %v\n", err)
+			continue
+		}
+		if incident != nil {
+			fmt.Printf("✅ AUTO-REMEDIATION SUCCESSFUL!\n")
+			fmt.Printf("   ├─ Incident ID:     %s\n", incident.ID)
+			fmt.Printf("   ├─ Diagnosed Cause: %s (%s)\n", incident.Reason, incident.Severity)
+			fmt.Printf("   ├─ Action Taken:    %s\n", incident.ActionTaken)
+			fmt.Printf("   ├─ Forensic Log:    %s\n", incident.Snapshot.RecentLogs)
+			fmt.Printf("   ├─ Analysis:        %s\n", incident.Snapshot.DiagnosticAnalysis)
+			fmt.Printf("   └─ Result:          %s\n", incident.RemediationLog)
+		}
+	}
+	printSimulationFooter()
+}
+
+type demoScenario struct {
+	name         string
+	pod          types.PodInfo
+	recentEvents []string
+	delay        time.Duration
+}
+
+func demoScenarios() []demoScenario {
+	return []demoScenario{
 		{
 			name: "Scenario 1: High-Severity Out-Of-Memory (OOMKilled) in Payment Service",
 			pod: types.PodInfo{
@@ -204,27 +260,9 @@ func runSimulation(ctx context.Context, ctrl *controller.Controller) {
 			delay: 2 * time.Second,
 		},
 	}
+}
 
-	for i, sc := range scenarios {
-		fmt.Printf("\n▶ [%d/3] INJECTING: %s\n", i+1, sc.name)
-		time.Sleep(sc.delay)
-
-		incident, err := ctrl.ProcessPod(ctx, sc.pod, sc.recentEvents)
-		if err != nil {
-			fmt.Printf("❌ Failed: %v\n", err)
-			continue
-		}
-		if incident != nil {
-			fmt.Printf("✅ AUTO-REMEDIATION SUCCESSFUL!\n")
-			fmt.Printf("   ├─ Incident ID:     %s\n", incident.ID)
-			fmt.Printf("   ├─ Diagnosed Cause: %s (%s)\n", incident.Reason, incident.Severity)
-			fmt.Printf("   ├─ Action Taken:    %s\n", incident.ActionTaken)
-			fmt.Printf("   ├─ Forensic Log:    %s\n", incident.Snapshot.RecentLogs)
-			fmt.Printf("   ├─ Analysis:        %s\n", incident.Snapshot.DiagnosticAnalysis)
-			fmt.Printf("   └─ Result:          %s\n", incident.RemediationLog)
-		}
-	}
-
+func printSimulationFooter() {
 	fmt.Println("\n----------------------------------------------------------------------")
 	fmt.Println("📊 Chaos Demonstration complete!")
 	fmt.Println("Prometheus Metrics available at: http://localhost:8080/metrics")
