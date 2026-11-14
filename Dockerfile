@@ -20,8 +20,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM alpine:3.20
 
 RUN apk --no-cache add ca-certificates tzdata curl && \
-    addgroup -S -g 65534 nonroot && \
-    adduser -S -u 65534 -G nonroot -h /app nonroot
+    addgroup -S -g 10001 nonroot && \
+    adduser -S -u 10001 -G nonroot -h /app nonroot
 
 WORKDIR /app
 COPY --from=builder /bin/kubehealer /app/kubehealer
